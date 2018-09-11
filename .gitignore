@@ -1,0 +1,12 @@
+# Python bytecode files
+*.py[cod]
+
+# Distribution / packaging
+.Python
+dist/
+lib/
+sdist/
+MANIFEST
+
+# PyInstaller
+*.manifest
