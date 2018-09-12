@@ -25,7 +25,14 @@ def main():
             constants.QUEUE_URL, sqs_client.DEFAULT_MSG_TYPE, msg_dict
         )
 
-    # TODO: read messages from initial queue
+    # retrieve messages from initial queue
+    dequeue = client.dequeue(constants.QUEUE_URL)
+    while True:
+        try:
+            next(dequeue)
+        except StopIteration:
+            break
+
     # TODO: send each message asynchronously to secondary queues
 
 

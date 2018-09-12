@@ -105,12 +105,53 @@ class SqsClient(object):
 
         return response
 
+    def receive_message(self, queue_url):
+        response = self.sqs.receive_message(QueueUrl=queue_url)
+
+        try:
+            _messages = response['Messages']
+        except KeyError:
+            logger.warn(
+                u'KeyError: sqs response did not contain key "Messages"',
+            )
+            message = {}
+        else:
+            message = _messages.pop()
+
+        try:
+            _msg_id = message['MessageId']
+        except KeyError:
+            logger.warn(
+                u'KeyError: sqs message did not contain key "MessageId"',
+            )
+            _msg_id = None
+        else:
+            logger.info(
+                u'Received message %s from queue %s',
+                _msg_id,
+                queue_url,
+            )
+
+        return message
+
     def enqueue(self, queue_url, msg_type, msg_dict):
         timestamp = iso_timestamp(datetime.datetime.utcnow())
 
         msg_attrs = self.create_msg_attrs(msg_type, timestamp=timestamp)
-        msg_body = self.create_msg_body(msg_type, msg_dict, timestamp=timestamp)
+
+        msg_body = self.create_msg_body(
+            msg_type, msg_dict, timestamp=timestamp
+        )
 
         response = self.send_message(queue_url, msg_attrs, msg_body)
 
         return response
+
+    def dequeue(self, queue_url):
+        while True:
+            message = self.receive_message(queue_url)
+
+            if not message:
+                break
+
+            yield message
