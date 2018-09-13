@@ -25,7 +25,7 @@ def iso_timestamp(dt):
 class SqsClient(object):
 
     @staticmethod
-    def _extract_msg_value(message, key):
+    def _extract_value(message, key):
         value = None
 
         try:
@@ -101,7 +101,7 @@ class SqsClient(object):
             MessageGroupId=msg_grp_id,
         )
 
-        _msg_id = self._extract_msg_value(response, 'MessageId')
+        _msg_id = self._extract_value(response, 'MessageId')
 
         logger.info(u'Sent MessageId=%s to Queue=%s', _msg_id, queue_url)
 
@@ -120,15 +120,30 @@ class SqsClient(object):
         else:
             message = _messages.pop()
 
-        _msg_id = self._extract_msg_value(message, 'MessageId')
-        _recp_hndl = self._extract_msg_value(message, 'ReceiptHandle')
+        _msg_id = self._extract_value(message, 'MessageId')
 
-        logger.info(
-            u'Received MessageId=%s receiptHandle=%s from Queue=%s',
-            _msg_id, _recp_hndl, queue_url
-        )
+        logger.info(u'Received MessageId=%s from Queue=%s', _msg_id, queue_url)
 
         return message
+
+    def delete_message(self, queue_url, message):
+        _recp_hndl = self._extract_value(message, 'ReceiptHandle')
+
+        response = self.sqs.delete_message(
+            QueueUrl=queue_url,
+            ReceiptHandle=_recp_hndl,
+        )
+
+        _metadata = self._extract_value(response, 'ResponseMetadata')
+        _status_code = self._extract_value(_metadata, 'HTTPStatusCode')
+
+        if _status_code == 200:
+            _msg_id = self._extract_value(message, 'MessageId')
+            logger.info(
+                u'Deleted MessageId=%s from Queue=%s', _msg_id, queue_url
+            )
+        else:
+            raise Exception('SQS delete message request failed')
 
     def enqueue(self, queue_url, msg_type, msg_dict):
         timestamp = iso_timestamp(datetime.datetime.utcnow())
@@ -145,9 +160,11 @@ class SqsClient(object):
 
     def dequeue(self, queue_url):
         while True:
-            message = self.receive_message(queue_url)
 
+            message = self.receive_message(queue_url)
             if not message:
                 break
+
+            self.delete_message(queue_url, message)
 
             yield message
