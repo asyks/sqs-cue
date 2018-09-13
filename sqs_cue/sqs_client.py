@@ -24,6 +24,17 @@ def iso_timestamp(dt):
 
 class SqsClient(object):
 
+    @staticmethod
+    def _extract_msg_value(message, key):
+        value = None
+
+        try:
+            value = message[key]
+        except KeyError:
+            logger.warn(u'KeyError: message did not contain key "%s"', key)
+
+        return value
+
     def __init__(self, access_key_id=None, access_key=None, region=None):
         self.sqs = None
 
@@ -90,47 +101,32 @@ class SqsClient(object):
             MessageGroupId=msg_grp_id,
         )
 
-        try:
-            _msg_id = response['MessageId']
-        except KeyError:
-            logger.warn(
-                u'KeyError: sqs response did not contain key "MessageId"',
-            )
-            _msg_id = ''
+        _msg_id = self._extract_msg_value(response, 'MessageId')
 
-        logger.info(
-            u'Sent message %s with body %s to queue %s',
-            _msg_id, msg_body, queue_url
-        )
+        logger.info(u'Sent MessageId=%s to Queue=%s', _msg_id, queue_url)
 
         return response
 
     def receive_message(self, queue_url):
         response = self.sqs.receive_message(QueueUrl=queue_url)
 
+        message = {}
         try:
             _messages = response['Messages']
         except KeyError:
             logger.warn(
                 u'KeyError: sqs response did not contain key "Messages"',
             )
-            message = {}
         else:
             message = _messages.pop()
 
-        try:
-            _msg_id = message['MessageId']
-        except KeyError:
-            logger.warn(
-                u'KeyError: sqs message did not contain key "MessageId"',
-            )
-            _msg_id = None
-        else:
-            logger.info(
-                u'Received message %s from queue %s',
-                _msg_id,
-                queue_url,
-            )
+        _msg_id = self._extract_msg_value(message, 'MessageId')
+        _recp_hndl = self._extract_msg_value(message, 'ReceiptHandle')
+
+        logger.info(
+            u'Received MessageId=%s receiptHandle=%s from Queue=%s',
+            _msg_id, _recp_hndl, queue_url
+        )
 
         return message
 
