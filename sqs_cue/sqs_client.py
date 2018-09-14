@@ -158,13 +158,14 @@ class SqsClient(object):
 
         return response
 
-    def dequeue(self, queue_url):
+    def dequeue(self, queue_url, delete=False):
+        message = self.receive_message(queue_url)
         while True:
-
-            message = self.receive_message(queue_url)
             if not message:
                 break
-
-            self.delete_message(queue_url, message)
+            if delete:
+                self.delete_message(queue_url, message)
 
             yield message
+
+            message = self.receive_message(queue_url)

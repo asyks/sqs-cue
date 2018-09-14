@@ -29,9 +29,11 @@ def main():
     dequeue = client.dequeue(constants.QUEUE_URL)
     while True:
         try:
-            next(dequeue)
+            message = next(dequeue)
         except StopIteration:
             break
+        else:
+            client.delete_message(constants.QUEUE_URL, message)
 
     # TODO: send each message asynchronously to secondary queues
 
