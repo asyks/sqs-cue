@@ -18,7 +18,9 @@ REGION = os.environ.get('REGION', 'us-west-2')
 QUEUE_URL_BASE = 'https://sqs.us-west-2.amazonaws.com/776591507825/'
 
 # Layer 1 Queues
-QUEUE_URL = QUEUE_URL_BASE + 'ua-DEV-cust-usgdata.fifo'
+QUEUE_URL = os.environ.get(
+    'QUEUE_URL', QUEUE_URL_BASE + 'ua-DEV-cust-usgdata.fifo'
+)
 
 # Layer 2 Queues
 QUEUE_URL_BILLING = QUEUE_URL_BASE + 'ua-DEV-cudata-bllng.fifo'
