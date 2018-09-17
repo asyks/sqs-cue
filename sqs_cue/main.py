@@ -2,16 +2,10 @@
 
 import constants
 import log
-import msg_faker
 import sqs_client
 
 
-def main():
-    # create fake messages
-    msg_dicts = []
-    for _i in range(10):
-        msg_dicts.append(msg_faker.create_msg_dict())
-
+def log_poll_queue():
     # connect to sqs
     client = sqs_client.SqsClient(
         access_key_id=constants.ACCESS_KEY_ID,
@@ -19,23 +13,26 @@ def main():
         region=constants.REGION,
     )
 
-    # send messages to initial queue
-    for msg_dict in msg_dicts:
-        client.enqueue(
-            constants.QUEUE_URL, sqs_client.DEFAULT_MSG_TYPE, msg_dict
-        )
-
     # retrieve messages from initial queue
     dequeue = client.dequeue(constants.QUEUE_URL)
     while True:
         try:
             message = next(dequeue)
         except StopIteration:
+            print('Stopping Long Polling due to StopIteration')
+            break
+        except KeyboardInterrupt:
+            print('Stopping Long Polling due to KeyboardInterrupt')
             break
         else:
-            client.delete_message(constants.QUEUE_URL, message)
+            if message:
+                client.delete_message(constants.QUEUE_URL, message)
 
     # TODO: send each message asynchronously to secondary queues
+
+
+def main():
+    log_poll_queue()
 
 
 if __name__ == '__main__':

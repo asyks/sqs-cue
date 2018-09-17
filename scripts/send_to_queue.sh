@@ -21,7 +21,7 @@ error () {
 ## create message body
 create_msg_body() {
     key_val=`hexdump -n 16 -e '4/4 "%08X" 1 "\n"' /dev/random`
-    name_val=`cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`
+    name_val=`cat /dev/urandom | LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`
     msg_body='{"key": '${key_val}', "name": '${name_val}'}'
 }
 

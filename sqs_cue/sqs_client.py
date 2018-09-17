@@ -107,8 +107,12 @@ class SqsClient(object):
 
         return response
 
-    def receive_message(self, queue_url):
-        response = self.sqs.receive_message(QueueUrl=queue_url)
+    def receive_message(self, queue_url, long_poll=True):
+        kwargs = {'QueueUrl': queue_url}
+        if long_poll:
+            kwargs.update({'WaitTimeSeconds': 20})
+
+        response = self.sqs.receive_message(**kwargs)
 
         message = {}
         try:
@@ -128,6 +132,9 @@ class SqsClient(object):
 
     def delete_message(self, queue_url, message):
         _recp_hndl = self._extract_value(message, 'ReceiptHandle')
+        if not _recp_hndl:
+            logger.warn(u'Could not delete invalid message')
+            return
 
         response = self.sqs.delete_message(
             QueueUrl=queue_url,
@@ -161,8 +168,6 @@ class SqsClient(object):
     def dequeue(self, queue_url, delete=False):
         message = self.receive_message(queue_url)
         while True:
-            if not message:
-                break
             if delete:
                 self.delete_message(queue_url, message)
 
