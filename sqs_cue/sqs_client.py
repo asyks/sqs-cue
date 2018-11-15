@@ -24,6 +24,17 @@ def iso_timestamp(dt):
 
 class SqsClient(object):
 
+    @staticmethod
+    def _extract_value(message, key):
+        value = None
+
+        try:
+            value = message[key]
+        except KeyError:
+            logger.warn(u'KeyError: message did not contain key "%s"', key)
+
+        return value
+
     def __init__(self, access_key_id=None, access_key=None, region=None):
         self.sqs = None
 
@@ -90,27 +101,76 @@ class SqsClient(object):
             MessageGroupId=msg_grp_id,
         )
 
-        try:
-            _msg_id = response['MessageId']
-        except KeyError:
-            logger.warn(
-                u'KeyError: sqs response did not contain key "MessageId"',
-            )
-            _msg_id = ''
+        _msg_id = self._extract_value(response, 'MessageId')
 
-        logger.info(
-            u'Sent message %s with body %s to queue %s',
-            _msg_id, msg_body, queue_url
-        )
+        logger.info(u'Sent MessageId=%s to Queue=%s', _msg_id, queue_url)
 
         return response
+
+    def receive_message(self, queue_url, long_poll=True):
+        kwargs = {'QueueUrl': queue_url}
+        if long_poll:
+            kwargs.update({'WaitTimeSeconds': 20})
+
+        response = self.sqs.receive_message(**kwargs)
+
+        message = {}
+        try:
+            _messages = response['Messages']
+        except KeyError:
+            logger.warn(
+                u'KeyError: sqs response did not contain key "Messages"',
+            )
+        else:
+            message = _messages.pop()
+
+        _msg_id = self._extract_value(message, 'MessageId')
+
+        logger.info(u'Received MessageId=%s from Queue=%s', _msg_id, queue_url)
+
+        return message
+
+    def delete_message(self, queue_url, message):
+        _recp_hndl = self._extract_value(message, 'ReceiptHandle')
+        if not _recp_hndl:
+            logger.warn(u'Could not delete invalid message')
+            return
+
+        response = self.sqs.delete_message(
+            QueueUrl=queue_url,
+            ReceiptHandle=_recp_hndl,
+        )
+
+        _metadata = self._extract_value(response, 'ResponseMetadata')
+        _status_code = self._extract_value(_metadata, 'HTTPStatusCode')
+
+        if _status_code == 200:
+            _msg_id = self._extract_value(message, 'MessageId')
+            logger.info(
+                u'Deleted MessageId=%s from Queue=%s', _msg_id, queue_url
+            )
+        else:
+            raise Exception('SQS delete message request failed')
 
     def enqueue(self, queue_url, msg_type, msg_dict):
         timestamp = iso_timestamp(datetime.datetime.utcnow())
 
         msg_attrs = self.create_msg_attrs(msg_type, timestamp=timestamp)
-        msg_body = self.create_msg_body(msg_type, msg_dict, timestamp=timestamp)
+
+        msg_body = self.create_msg_body(
+            msg_type, msg_dict, timestamp=timestamp
+        )
 
         response = self.send_message(queue_url, msg_attrs, msg_body)
 
         return response
+
+    def dequeue(self, queue_url, delete=False):
+        message = self.receive_message(queue_url)
+        while True:
+            if delete:
+                self.delete_message(queue_url, message)
+
+            yield message
+
+            message = self.receive_message(queue_url)

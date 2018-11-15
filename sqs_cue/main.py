@@ -1,32 +1,39 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import constants
+import config
 import log
-import msg_faker
 import sqs_client
 
 
-def main():
-    # create fake messages
-    msg_dicts = []
-    for _i in range(10):
-        msg_dicts.append(msg_faker.create_msg_dict())
-
-    # connect to sqs
+def log_poll_queue():
     client = sqs_client.SqsClient(
-        access_key_id=constants.ACCESS_KEY_ID,
-        access_key=constants.ACCESS_KEY,
-        region=constants.REGION,
+        access_key_id=config.ingress_queue['access_key_id'],
+        access_key=config.ingress_queue['access_key'],
+        region=config.ingress_queue['region'],
     )
 
-    # send messages to initial queue
-    for msg_dict in msg_dicts:
-        client.enqueue(
-            constants.QUEUE_URL, sqs_client.DEFAULT_MSG_TYPE, msg_dict
-        )
+    # Retrieve messages from initial queue
+    dequeue = client.dequeue(config.ingress_queue['queue_url'])
+    while True:
+        try:
+            message = next(dequeue)
+        except StopIteration:
+            print('Stopping Long Polling due to StopIteration')
+            break
+        except KeyboardInterrupt:
+            print('Stopping Long Polling due to KeyboardInterrupt')
+            break
+        else:
+            if message:
+                client.delete_message(
+                    config.ingress_queue['queue_url'], message
+                )
 
-    # TODO: read messages from initial queue
     # TODO: send each message asynchronously to secondary queues
+
+
+def main():
+    log_poll_queue()
 
 
 if __name__ == '__main__':

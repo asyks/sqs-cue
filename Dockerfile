@@ -1,19 +1,13 @@
 FROM python:3.6-alpine
 
 # Consume build args and set env vars
-ARG ACCESS_KEY_ID
-ARG ACCESS_KEY
-ARG REGION
-ARG QUEUE_URL
-
-ENV ACCESS_KEY_ID ${ACCESS_KEY_ID}
-ENV ACCESS_KEY ${ACCESS_KEY}
-ENV REGION ${REGION}
-ENV QUEUE_URL ${QUEUE_URL}
+ARG QUEUE_CONFIG_FILE
+ENV QUEUE_CONFIG_FILE ${QUEUE_CONFIG_FILE}
 
 # Copy files dir to container
 RUN mkdir -p /opt/sqs-cue
 WORKDIR /opt/sqs-cue
+COPY ${QUEUE_CONFIG_FILE} /opt/sqs-cue/
 COPY ./requirements.txt /opt/sqs-cue
 COPY ./sqs_cue /opt/sqs-cue/sqs_cue
 
