@@ -1,20 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import constants
+import config
 import log
 import sqs_client
 
 
 def log_poll_queue():
-    # connect to sqs
     client = sqs_client.SqsClient(
-        access_key_id=constants.ACCESS_KEY_ID,
-        access_key=constants.ACCESS_KEY,
-        region=constants.REGION,
+        access_key_id=config.ingress_queue['access_key_id'],
+        access_key=config.ingress_queue['access_key'],
+        region=config.ingress_queue['region'],
     )
 
-    # retrieve messages from initial queue
-    dequeue = client.dequeue(constants.QUEUE_URL)
+    # Retrieve messages from initial queue
+    dequeue = client.dequeue(config.ingress_queue['queue_url'])
     while True:
         try:
             message = next(dequeue)
@@ -26,7 +25,9 @@ def log_poll_queue():
             break
         else:
             if message:
-                client.delete_message(constants.QUEUE_URL, message)
+                client.delete_message(
+                    config.ingress_queue['queue_url'], message
+                )
 
     # TODO: send each message asynchronously to secondary queues
 
