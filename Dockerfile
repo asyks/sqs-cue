@@ -1,4 +1,4 @@
-FROM python:3.6-alpine
+FROM python:3.7-alpine
 
 # Consume build args and set env vars
 ARG QUEUE_CONFIG_FILE
