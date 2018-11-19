@@ -22,7 +22,7 @@ def iso_timestamp(dt):
     return timestamp
 
 
-class SqsClient(object):
+class Client(object):
 
     @staticmethod
     def _extract_value(message, key):
@@ -41,7 +41,7 @@ class SqsClient(object):
         if all((access_key_id, access_key, region)):
             self.connect_to_sqs(access_key_id, access_key, region)
 
-        return super(SqsClient, self).__init__()
+        return super(Client, self).__init__()
 
     def connect_to_sqs(self, access_key_id, access_key, region):
         self.sqs = boto3.client(
