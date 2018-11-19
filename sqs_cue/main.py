@@ -7,19 +7,48 @@ import log
 import sqs_client
 
 
-async def print_message(queue, message):
+def send_message():
+    class FakeResponse:
+
+        def __init__(self, status=None):
+            self.status = status
+
+            return super().__init__()
+
+    response = FakeResponse(status='ok')
+    response.status = 'ok'
+
+    return response
+
+
+async def send_msg_async(queue, message):
     message_id = message['MessageId']
     queue_url = queue['queue_url']
     print(f'Sending message {message_id} to queue {queue_url}')
 
-    return True
+    resp = send_message()
+
+    if queue['critical']:
+        if resp.status == 'ok':
+            success = True
+        else:
+            success = False
+    else:
+        success = True
+
+    return success
 
 
 async def async_send_message(queues, message):
     statuses = await asyncio.gather(
-        *(print_message(queue, message) for queue in queues)
+        *(send_msg_async(queue, message) for queue in queues)
     )
-    print(statuses)
+
+    message_id = message['MessageId']
+    if all(statuses):
+        print(f'Message {message_id} handled successfully!')
+    else:
+        print(f'Message {message_id} handling failed.')
 
 
 def long_poll_queue():
