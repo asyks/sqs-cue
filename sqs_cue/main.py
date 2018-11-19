@@ -7,37 +7,49 @@ import log
 import sqs_client
 
 
-def send_message(queue, message):
-    client = sqs_client.SqsClient(
-        access_key_id=queue['access_key_id'],
-        access_key=queue['access_key'],
-        region=queue['region'],
-    )
-    response = client.enqueue(queue['queue_url'], 'type1', message['Body'])
-
-    return response
-
-
-async def send_msg_async(queue, message):
+async def handle_route(route, message):
     message_id = message['MessageId']
-    queue_url = queue['queue_url']
-    print(f'Sending message {message_id} to queue {queue_url}')
 
-    response = send_message(queue, message)
+    if route['type'] == 'sqs':
+        try:
+            queue_url = route['queue_url']
+        except KeyError:
+            raise KeyError("route is type 'sqs', but 'queue_url' not provided")
+
+        try:
+            access_key_id = route['access_key_id']
+            access_key = route['access_key']
+            region = route['region']
+        except KeyError:
+            raise KeyError(
+                "route with queue_url {queue_url} is misconfigured, "
+                "must provide: access_key_id, access_key, and region"
+            )
+
+        print(f'Sending message {message_id} to queue {queue_url}')
+        client = sqs_client.SqsClient(
+            access_key_id=access_key_id, access_key=access_key, region=region
+        )
+        response = client.enqueue(route['queue_url'], 'type1', message['Body'])
+
+    if route['type'] == 'raw':
+        print(f'Sending message {message_id} as request')
+
+    try:
+        status_code = response['ResponseMetadata']['HTTPStatusCode']
+    except KeyError:
+        status_code = None
 
     failure = False
-    if (
-        queue['critical']
-        and response['ResponseMetadata']['HTTPStatusCode'] != 200
-    ):
+    if route['critical'] and status_code != 200:
         failure = True
 
     return failure
 
 
-async def async_send_message(queues, message):
+async def async_process_message(routes, message):
     failures = await asyncio.gather(
-        *(send_msg_async(queue, message) for queue in queues)
+        *(handle_route(route, message) for route in routes)
     )
 
     if not failures or any(failures):
@@ -55,7 +67,7 @@ def long_poll_queue():
         region=config.receiver['region'],
     )
 
-    # Retrieve messages from initial queue
+    # Retrieve messages from receiver queue
     dequeue = client.dequeue(config.receiver['queue_url'])
     while True:
         try:
@@ -69,7 +81,7 @@ def long_poll_queue():
         else:
             if message:
                 success = asyncio.run(
-                    async_send_message(config.senders, message)
+                    async_process_message(config.routes, message)
                 )
 
                 message_id = message['MessageId']
