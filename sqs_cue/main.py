@@ -28,38 +28,35 @@ async def send_msg_async(queue, message):
 
     resp = send_message()
 
-    if queue['critical']:
-        if resp.status == 'ok':
-            success = True
-        else:
-            success = False
+    failure = False
+    if queue['critical'] and resp.status != 'ok':
+        failure = True
+
+    return failure
+
+
+async def async_send_message(queues, message):
+    failures = await asyncio.gather(
+        *(send_msg_async(queue, message) for queue in queues)
+    )
+
+    if not failures or any(failures):
+        success = False
     else:
         success = True
 
     return success
 
 
-async def async_send_message(queues, message):
-    statuses = await asyncio.gather(
-        *(send_msg_async(queue, message) for queue in queues)
-    )
-
-    message_id = message['MessageId']
-    if all(statuses):
-        print(f'Message {message_id} handled successfully!')
-    else:
-        print(f'Message {message_id} handling failed.')
-
-
 def long_poll_queue():
     client = sqs_client.SqsClient(
-        access_key_id=config.ingress_queue['access_key_id'],
-        access_key=config.ingress_queue['access_key'],
-        region=config.ingress_queue['region'],
+        access_key_id=config.receiver['access_key_id'],
+        access_key=config.receiver['access_key'],
+        region=config.receiver['region'],
     )
 
     # Retrieve messages from initial queue
-    dequeue = client.dequeue(config.ingress_queue['queue_url'])
+    dequeue = client.dequeue(config.receiver['queue_url'])
     while True:
         try:
             message = next(dequeue)
@@ -71,15 +68,17 @@ def long_poll_queue():
             break
         else:
             if message:
-                asyncio.run(
-                    async_send_message(
-                        config.egress_queues, message
-                    )
+                success = asyncio.run(
+                    async_send_message(config.senders, message)
                 )
 
-                client.delete_message(
-                    config.ingress_queue['queue_url'], message
-                )
+                message_id = message['MessageId']
+                if success:
+                    client.delete_message(
+                        config.receiver['queue_url'], message
+                    )
+                else:
+                    print(f'Message {message_id} handling failed.')
 
 
 def main():
