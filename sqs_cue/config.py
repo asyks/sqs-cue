@@ -15,15 +15,15 @@ def validate_queue_config(directive, queue_config):
             f"{directive} queue is type 'sqs', but queue 'url' not provided"
         )
 
-    if not hasattr(queue_config, 'access_key_id'):
+    if 'access_key_id' not in queue_config:
         raise YamlConfigError(
             f"{directive} with queue_url {queue_url} missing access_key_id"
         )
-    if not hasattr(queue_config, 'access_key'):
+    if 'access_key' not in queue_config:
         raise YamlConfigError(
             f"{directive} with queue_url {queue_url} missing access_key"
         )
-    if not hasattr(queue_config, 'region'):
+    if 'region' not in queue_config:
         raise YamlConfigError(
             f"{directive} with queue_url {queue_url} missing region"
         )
@@ -38,7 +38,7 @@ try:
 except KeyError:
     raise YamlConfigError('no source receiver provided')
 else:
-    validate_queue_config(receiver)
+    validate_queue_config('receiver', receiver)
 
 # Destination route sqs queue config
 try:
@@ -53,4 +53,4 @@ else:
             raise YamlConfigError('route type not specified')
 
         if route['type'] == 'sqs':
-            validate_queue_config(route)
+            validate_queue_config('route', route)
