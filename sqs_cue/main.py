@@ -31,31 +31,14 @@ async def handle_route(route, message):
 
     else:
         if route['type'] == 'sqs':
-            try:
-                queue_url = route['url']
-            except KeyError:
-                raise KeyError(
-                    "route is type 'sqs', but queue 'url' not provided"
-                )
-
-            try:
-                access_key_id = route['access_key_id']
-                access_key = route['access_key']
-                region = route['region']
-            except KeyError:
-                raise KeyError(
-                    "route with queue_url {queue_url} is misconfigured, "
-                    "must provide: access_key_id, access_key, and region"
-                )
-
             logger.info(
-                'Sending message %s to queue %s', message_id, queue_url
+                'Sending message %s to queue %s', message_id, route['url']
             )
 
             client = sqs.Client(
-                access_key_id=access_key_id,
-                access_key=access_key,
-                region=region
+                access_key_id=route['access_key_id'],
+                access_key=route['access_key'],
+                region=route['region'],
             )
             response = client.enqueue(route['url'], 'type1', message['Body'])
 
@@ -90,32 +73,17 @@ async def async_process_message(routes, message):
 
 
 def long_poll_queue():
-    try:
-        queue_url = config.receiver['url']
-    except KeyError:
-        raise KeyError("receiver queue 'url' not provided")
-
-    try:
-        access_key_id = config.receiver['access_key_id']
-        access_key = config.receiver['access_key']
-        region = config.receiver['region']
-    except KeyError:
-        raise KeyError(
-            "receiver with queue_url {queue_url} is misconfigured, "
-            "must provide: access_key_id, access_key, and region"
-        )
-
     # Instantiate Long Poller on receiver queue
     client = sqs.Client(
-        access_key_id=access_key_id,
-        access_key=access_key,
-        region=region
+        access_key_id=config.receiver['access_key_id'],
+        access_key=config.receiver['access_key'],
+        region=config.receiver['region'],
     )
-    dequeue = client.dequeue(queue_url)
+    dequeue = client.dequeue(config.receiver['url'])
 
     while True:
         try:
-            message = next(dequeue)
+            message = next(dequeue)  # Retrieve message from receiver queue
         except StopIteration:
             raise StopIteration('Stopping Long Polling due to StopIteration')
         except KeyboardInterrupt:
