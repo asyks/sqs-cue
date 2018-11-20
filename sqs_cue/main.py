@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import json
 
 import config
 import log
@@ -11,13 +12,29 @@ import sqs
 logger = logging.getLogger(__name__)
 
 
-async def transform_message(transformer, message):
-    if not transformer:
-        return message
-    else:
+def recursive_transform(transform, message, result={}):
+    for tform_name, tform_value in transform.items():
+        if isinstance(tform_value, dict):
+            result[tform_name] = {}
+            recursive_transform(
+                tform_value, message, result[tform_name]
+            )
+
+        elif isinstance(tform_value, str):
+            _msg_value = message
+            for _msg_name in tform_value.split('.'):
+                _msg_value = _msg_value[_msg_name]
+
+            result[tform_name] = _msg_value
+
+
+def transform_message(transform, message, result={}):
+    if not transform:
         return message
 
-    # Retrieve transformer, execute, return result
+    recursive_transform(transform, message, result)
+
+    return result
 
 
 async def handle_route(route, message):
@@ -29,7 +46,14 @@ async def handle_route(route, message):
         logger.error("Received message did not contain key 'MessageId'")
         failure = True
 
+    try:
+        message_body = json.loads(message['Body'])
+    except json.decoder.JSONDecodeError:
+        logger.error("Received message body is not valid json")
+        failure = True
     else:
+        message_body_out = transform_message(route['transform'], message_body)
+
         if route['type'] == 'sqs':
             logger.info(
                 'Sending message %s to queue %s', message_id, route['url']
@@ -40,11 +64,13 @@ async def handle_route(route, message):
                 access_key=route['access_key'],
                 region=route['region'],
             )
-            response = client.enqueue(route['url'], 'type1', message['Body'])
+            response = client.enqueue(route['url'], 'type1', message_body_out)
 
         if route['type'] == 'raw_http':
             logger.info(
-                'Sending message %s as raw http request', message_id
+                'Sending message %s as raw http request %s',
+                message_id,
+                json.dumps(message_body_out),
             )
             response = {}
 
