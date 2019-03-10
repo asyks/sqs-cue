@@ -10,8 +10,8 @@ import boto3
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_MSG_TYPE = 'default-message-type'
-DEFAULT_MSG_GRP_ID = 'default-message-group'
+DEFAULT_MSG_TYPE = "default-message-type"
+DEFAULT_MSG_GRP_ID = "default-message-group"
 
 
 def iso_timestamp(dt):
@@ -22,7 +22,7 @@ def iso_timestamp(dt):
     return timestamp
 
 
-class SqsClient(object):
+class Client(object):
 
     @staticmethod
     def _extract_value(message, key):
@@ -31,32 +31,32 @@ class SqsClient(object):
         try:
             value = message[key]
         except KeyError:
-            logger.warn(u'KeyError: message did not contain key "%s"', key)
+            logger.warn("KeyError: message did not contain key '%s'", key)
 
         return value
 
     def __init__(self, access_key_id=None, access_key=None, region=None):
-        self.sqs = None
+        self._client = None
 
         if all((access_key_id, access_key, region)):
             self.connect_to_sqs(access_key_id, access_key, region)
 
-        return super(SqsClient, self).__init__()
+        return super(Client, self).__init__()
 
     def connect_to_sqs(self, access_key_id, access_key, region):
-        self.sqs = boto3.client(
-            'sqs',
+        self._client = boto3.client(
+            "sqs",
             aws_access_key_id=access_key_id,
             aws_secret_access_key=access_key,
             region_name=region,
         )
 
         logger.info(
-            u'Connected to AWS SQS region: %s',
-            self.sqs._client_config.region_name
+            "Connected to AWS SQS region: %s",
+            self._client._client_config.region_name
         )
 
-        return self.sqs
+        return self._client
 
     @classmethod
     def create_msg_attrs(cls, msg_type, timestamp=None):
@@ -64,13 +64,13 @@ class SqsClient(object):
             timestamp = iso_timestamp(datetime.datetime.utcnow())
 
         msg_attrs = {
-            'msgType': {
-                'StringValue': msg_type,
-                'DataType': 'String'
+            "msgType": {
+                "StringValue": msg_type,
+                "DataType": "String"
             },
-            'msgSentTimestamp': {
-                'StringValue': timestamp,
-                'DataType': 'String'
+            "msgSentTimestamp": {
+                "StringValue": timestamp,
+                "DataType": "String"
             },
         }
 
@@ -82,9 +82,9 @@ class SqsClient(object):
             timestamp = iso_timestamp(datetime.datetime.utcnow())
 
         msg_body = {
-            'msgType': msg_type,
-            'msgBodyData': msg_dict,
-            'msgSentTimestamp': timestamp,
+            "msgType": msg_type,
+            "msgBodyData": msg_dict,
+            "msgSentTimestamp": timestamp,
         }
 
         return msg_body
@@ -94,63 +94,63 @@ class SqsClient(object):
     ):
         msg_body = json.dumps(msg_body)
 
-        response = self.sqs.send_message(
+        response = self._client.send_message(
             QueueUrl=queue_url,
             MessageAttributes=msg_attrs,
             MessageBody=msg_body,
             MessageGroupId=msg_grp_id,
         )
 
-        _msg_id = self._extract_value(response, 'MessageId')
+        _msg_id = self._extract_value(response, "MessageId")
 
-        logger.info(u'Sent MessageId=%s to Queue=%s', _msg_id, queue_url)
+        logger.info("Sent MessageId=%s to Queue=%s", _msg_id, queue_url)
 
         return response
 
     def receive_message(self, queue_url, long_poll=True):
-        kwargs = {'QueueUrl': queue_url}
+        kwargs = {"QueueUrl": queue_url}
         if long_poll:
-            kwargs.update({'WaitTimeSeconds': 20})
+            kwargs.update({"WaitTimeSeconds": 20})
 
-        response = self.sqs.receive_message(**kwargs)
+        response = self._client.receive_message(**kwargs)
 
         message = {}
         try:
-            _messages = response['Messages']
+            _messages = response["Messages"]
         except KeyError:
             logger.warn(
-                u'KeyError: sqs response did not contain key "Messages"',
+                "KeyError: sqs response did not contain key 'Messages'",
             )
         else:
             message = _messages.pop()
 
-        _msg_id = self._extract_value(message, 'MessageId')
+        _msg_id = self._extract_value(message, "MessageId")
 
-        logger.info(u'Received MessageId=%s from Queue=%s', _msg_id, queue_url)
+        logger.info("Received MessageId=%s from Queue=%s", _msg_id, queue_url)
 
         return message
 
     def delete_message(self, queue_url, message):
-        _recp_hndl = self._extract_value(message, 'ReceiptHandle')
+        _recp_hndl = self._extract_value(message, "ReceiptHandle")
         if not _recp_hndl:
-            logger.warn(u'Could not delete invalid message')
+            logger.warn("Could not delete invalid message")
             return
 
-        response = self.sqs.delete_message(
+        response = self._client.delete_message(
             QueueUrl=queue_url,
             ReceiptHandle=_recp_hndl,
         )
 
-        _metadata = self._extract_value(response, 'ResponseMetadata')
-        _status_code = self._extract_value(_metadata, 'HTTPStatusCode')
+        _metadata = self._extract_value(response, "ResponseMetadata")
+        _status_code = self._extract_value(_metadata, "HTTPStatusCode")
 
         if _status_code == 200:
-            _msg_id = self._extract_value(message, 'MessageId')
+            _msg_id = self._extract_value(message, "MessageId")
             logger.info(
-                u'Deleted MessageId=%s from Queue=%s', _msg_id, queue_url
+                "Deleted MessageId=%s from Queue=%s", _msg_id, queue_url
             )
         else:
-            raise Exception('SQS delete message request failed')
+            raise Exception("SQS delete message request failed")
 
     def enqueue(self, queue_url, msg_type, msg_dict):
         timestamp = iso_timestamp(datetime.datetime.utcnow())
